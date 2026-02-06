@@ -55,4 +55,61 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+router.get('/all', async (req, res) => {
+  try {
+    const [properties] = await db.query('SELECT * FROM properties ORDER BY created_at DESC');
+    res.json(properties);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update property - Staff only
+router.put('/:id', async (req, res) => {
+  try {
+    const { address, city, state, propertyType, bedrooms, bathrooms, rentAmount, status } = req.body;
+    
+    await db.query(
+      `UPDATE properties SET address = ?, city = ?, state = ?, property_type = ?, 
+       bedrooms = ?, bathrooms = ?, rent_amount = ?, status = ? WHERE property_id = ?`,
+      [address, city, state, propertyType, bedrooms, bathrooms, rentAmount, status, req.params.id]
+    );
+    
+    res.json({ message: 'Property updated successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Add new property - Staff only
+router.post('/', async (req, res) => {
+  try {
+    const { address, city, state, propertyType, bedrooms, bathrooms, rentAmount } = req.body;
+    
+    const [result] = await db.query(
+      `INSERT INTO properties (address, city, state, property_type, bedrooms, bathrooms, rent_amount, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'available')`,
+      [address, city, state, propertyType, bedrooms, bathrooms, rentAmount]
+    );
+    
+    res.status(201).json({ propertyId: result.insertId, message: 'Property added successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Delete property - Staff only
+router.delete('/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM properties WHERE property_id = ?', [req.params.id]);
+    res.json({ message: 'Property deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

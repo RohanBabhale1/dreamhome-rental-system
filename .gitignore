@@ -1,12 +1,3 @@
-# Java
-*.class
-*.jar
-*.war
-*.ear
-target/
-*.iml
-.idea/
-
 # Node.js
 node_modules/
 npm-debug.log
