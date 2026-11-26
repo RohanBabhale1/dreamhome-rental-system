@@ -272,7 +272,7 @@ The implementation includes API integration tests covering authorization, verifi
 
 The original targets of 100 concurrent users and responses under two seconds have **not** been load-tested. Vercel cold starts, email delivery and Atlas free-tier limits affect latency. Atlas free storage is limited to 0.5 GB and idle free clusters can pause; review current provider limits before relying on the service.
 
-No live Vercel deployment or real SMTP delivery is performed by local tests. Configure your own accounts and run the deployment checks above. Payment collection, electronic signatures, password recovery, file uploads, staff payroll, automatic lease expiry, refunds, and real-time push notifications are outside this implementation.
+No live Vercel deployment or real SMTP delivery is performed by local tests. Configure your own accounts and run the deployment checks above. Real payment collection, legally binding electronic signatures, password recovery, file uploads, staff payroll, automatic lease expiry, refunds, and real-time push notifications are outside this implementation.
 
 ## Demo homes and photography
 
@@ -281,3 +281,29 @@ The catalog contains 12 fictional rental listings across New York, Austin, Denve
 Eight downloaded Pexels photos are bundled in `web-app/client/public/images/homes/` and served from the same origin on Vercel. Photo sources and the license link are recorded in [credits.json](../web-app/client/public/images/homes/credits.json). Each demo detail page links to its photo source.
 
 Run `npm run seed:homes` to add missing demo homes and fill blank photos on the exact original seed listings, without resetting rents, availability, leases, custom photos or archived status. Re-running does not duplicate the catalog. `npm run seed` also initializes the same catalog for a new installation. Staff image fields accept HTTPS URLs or bundled `/images/homes/123.jpg` paths.
+
+## Rental applications and demo checkout
+
+Verified clients can apply directly from a property page without scheduling a viewing. The Applications dashboard supports staff approval/rejection, client acceptance, and demo checkout. The flow is `submitted -> approved -> accepted -> paid`; unpaid applications can be withdrawn, and submitted ones can be rejected.
+
+Approval stores an immutable agreement snapshot (property/address, tenant, dates, rent, deposit, terms and version). It reserves the property, cancels scheduled viewings and rejects competing applications. A reserved home cannot be edited, archived or manually leased. Withdrawal releases the reservation; there is no automatic reservation expiry. Rejected applicants can apply again if the home becomes available.
+
+Acceptance requires the applicant's typed name, explicit consent and matching agreement version; its timestamp is recorded. Checkout uses only the approved amounts. Simulated declines create no lease or receipt and can be retried. Success atomically creates a demo lease, a `simulation` payment with `testMode: true`, and marks the home rented. Repeated/concurrent successes return the same lease without duplicate receipts. These entries affect the demonstration balance and must not be treated as actual revenue.
+
+The `Application` collection links client, property, reviewer, agreement and resulting rental. A partial unique index prevents multiple open applications by the same client for the same home. Property reservations and lease/payment creation use MongoDB transactions (Atlas or a local replica set required).
+
+Authenticated endpoints:
+
+| Endpoint                                      | Access and purpose                                 |
+| --------------------------------------------- | -------------------------------------------------- |
+| `GET /api/applications`                       | Clients see their own; staff see all               |
+| `POST /api/applications`                      | Verified client submits an application             |
+| `POST /api/applications/:id/approve`          | Staff set terms and reserve the home               |
+| `POST /api/applications/:id/reject`           | Staff reject a submitted application               |
+| `POST /api/applications/:id/accept`           | Applicant accepts the versioned agreement          |
+| `POST /api/applications/:id/withdraw`         | Applicant or staff releases an unpaid application  |
+| `POST /api/applications/:id/simulate-payment` | Applicant selects success/failure after acceptance |
+
+No new environment variables, gateway accounts or payment keys are needed. The demo endpoint accepts an outcome and explicit simulation acknowledgement, never card details or client-provided amounts. For a real product, replace browser-selected outcomes with a gateway adapter and verified server-side webhook fulfillment, plus appropriate contract, cancellation and refund handling. Never reuse simulated receipts as evidence of payment.
+
+`npm test` covers ownership, agreement consent/version, competing approvals, retries, duplicate payments, withdrawal and archival. `npm run test:browser` also exercises the full application/approval/acceptance/decline/success flow using an isolated database and Chrome.

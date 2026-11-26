@@ -6,6 +6,7 @@ const {
   Rental,
   Viewing,
   Maintenance,
+  Application,
 } = require("../models");
 const { z, id, text, fail, auth, staff, scope, publicUser } = require("../lib");
 router.use(auth);
@@ -32,7 +33,8 @@ router.patch("/users/:id", staff, async (req, res) => {
     role === "staff" &&
     ((await Rental.exists({ client: user._id })) ||
       (await Viewing.exists({ client: user._id })) ||
-      (await Maintenance.exists({ client: user._id })))
+      (await Maintenance.exists({ client: user._id })) ||
+      (await Application.exists({ client: user._id })))
   )
     fail(409, "This account has client history. Use a separate staff account.");
   user.role = role;

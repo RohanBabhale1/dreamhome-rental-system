@@ -187,6 +187,91 @@ async function main() {
     await expect(
       page.getByText("There is a leak under the kitchen sink."),
     ).toBeVisible();
+    const onlineHome = await models.Property.create({
+      title: "Demo Checkout Home",
+      address: "42 Demo Street",
+      city: "Boston",
+      type: "apartment",
+      bedrooms: 2,
+      bathrooms: 1,
+      rent: 1200,
+      status: "available",
+    });
+    await page.goto(process.env.APP_URL + "/properties/" + onlineHome._id);
+    await page
+      .getByRole("button", { name: "Apply to rent", exact: true })
+      .click();
+    await page
+      .getByLabel("Preferred move-in date")
+      .fill(tomorrow.toISOString().slice(0, 10));
+    await page
+      .getByRole("button", { name: "Submit application", exact: true })
+      .click();
+    await expect(
+      page.getByText("Application submitted", { exact: false }),
+    ).toBeVisible();
+    const staffPage = await browser.newPage();
+    staffPage.on("pageerror", (error) => errors.push(error.message));
+    await staffPage.goto(process.env.APP_URL + "/login");
+    await staffPage.getByLabel("Email").fill(admin.email);
+    await staffPage.getByLabel(/Password/).fill("Browser-password-123");
+    await staffPage
+      .getByRole("button", { name: "Sign in", exact: true })
+      .click();
+    await staffPage
+      .getByRole("tab", { name: "applications", exact: true })
+      .click();
+    await staffPage
+      .getByRole("button", { name: "Approve and set terms" })
+      .click();
+    await staffPage
+      .getByLabel("Lease end date (exclusive)")
+      .fill(end.toISOString().slice(0, 10));
+    await staffPage.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(
+      staffPage.getByText("approved", { exact: true }),
+    ).toBeVisible();
+    await page.goto(process.env.APP_URL + "/dashboard?tab=applications");
+    await page
+      .getByRole("button", { name: "Review and accept agreement" })
+      .click();
+    await page.getByLabel("Type your full name to accept").fill("Test Client");
+    await page.getByRole("checkbox").check();
+    await page
+      .getByRole("button", { name: "Accept agreement", exact: true })
+      .click();
+    await page
+      .getByRole("button", {
+        name: "Pay deposit & first month (demo)",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("button", { name: "Simulate decline", exact: true })
+      .click();
+    await expect(
+      page.getByRole("dialog").getByText(/Demo payment declined/),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Simulate successful payment", exact: true })
+      .click();
+    await expect(
+      page.getByText("demo payment completed", { exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("tab", { name: "Leases & payments", exact: true })
+      .click();
+    await page
+      .locator("article")
+      .filter({ hasText: "Demo Checkout Home" })
+      .locator("summary")
+      .click();
+    await expect(page.getByText(/Demo payment .* no charge/)).toBeVisible();
+    await page.screenshot({
+      path: "test-results/demo-checkout-desktop.png",
+      fullPage: true,
+    });
+    await staffPage.close();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({
       path: "test-results/client-mobile.png",
@@ -211,7 +296,7 @@ async function main() {
       throw new Error("Mobile homepage overflows viewport");
     if (errors.length) throw new Error(errors.join("\n"));
     console.log(
-      "Browser checks passed: browse, filter, login, booking, property editing, lease creation, payment recording, maintenance and mobile layouts.",
+      "Browser checks passed: browse, filter, login, booking, property editing, lease creation, payment recording, maintenance, rental application approval, agreement acceptance, demo decline/retry/success and mobile layouts.",
     );
   } finally {
     if (browser) await browser.close();

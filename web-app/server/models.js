@@ -46,11 +46,12 @@ const Property = model(
     branch: { type: Schema.Types.ObjectId, ref: "Branch" },
     status: {
       type: String,
-      enum: ["available", "rented", "maintenance"],
+      enum: ["available", "reserved", "rented", "maintenance"],
       default: "available",
     },
     archived: { type: Boolean, default: false },
     revision: { type: Number, default: 0 },
+    reservedBy: { type: Schema.Types.ObjectId, ref: "Application" },
   },
   [[{ city: 1, status: 1 }, {}]],
 );
@@ -88,6 +89,13 @@ const Rental = model(
     endDate: Date,
     monthlyRent: Number,
     deposit: Number,
+    simulated: { type: Boolean, default: false },
+    application: {
+      type: Schema.Types.ObjectId,
+      ref: "Application",
+      unique: true,
+      sparse: true,
+    },
     status: {
       type: String,
       enum: ["active", "completed", "terminated"],
@@ -105,10 +113,63 @@ const Payment = model("Payment", {
   rental: ref("Rental"),
   amount: Number,
   date: Date,
-  method: { type: String, enum: ["cash", "card", "bank_transfer"] },
+  method: {
+    type: String,
+    enum: ["cash", "card", "bank_transfer", "simulation"],
+  },
   reference: { type: String, unique: true },
   recordedBy: ref("User"),
+  provider: String,
+  testMode: Boolean,
 });
+const Application = model(
+  "Application",
+  {
+    property: ref("Property"),
+    client: ref("User"),
+    preferredStart: Date,
+    occupants: Number,
+    message: String,
+    status: {
+      type: String,
+      enum: [
+        "submitted",
+        "approved",
+        "accepted",
+        "paid",
+        "rejected",
+        "withdrawn",
+      ],
+      default: "submitted",
+    },
+    open: { type: Boolean, default: true },
+    reviewedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    decisionNote: String,
+    agreement: {
+      propertyTitle: String,
+      address: String,
+      tenantName: String,
+      startDate: Date,
+      endDate: Date,
+      monthlyRent: Number,
+      deposit: Number,
+      terms: String,
+      version: String,
+    },
+    acceptedAt: Date,
+    acceptedName: String,
+    paymentAttempts: { type: Number, default: 0 },
+    lastPaymentStatus: String,
+    paidAt: Date,
+    rental: { type: Schema.Types.ObjectId, ref: "Rental" },
+  },
+  [
+    [
+      { property: 1, client: 1 },
+      { unique: true, partialFilterExpression: { open: true } },
+    ],
+  ],
+);
 const Maintenance = model("Maintenance", {
   property: ref("Property"),
   client: ref("User"),
@@ -135,4 +196,5 @@ module.exports = {
   Payment,
   Maintenance,
   Attempt,
+  Application,
 };

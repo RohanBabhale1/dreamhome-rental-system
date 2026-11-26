@@ -1,6 +1,13 @@
 const router = require("express").Router();
 const mongoose = require("mongoose");
-const { Rental, Property, User, Payment, Viewing } = require("../models");
+const {
+  Rental,
+  Property,
+  User,
+  Payment,
+  Viewing,
+  Application,
+} = require("../models");
 const {
   z,
   id,
@@ -70,6 +77,17 @@ router.post("/", staff, async (req, res) => {
     await Viewing.updateMany(
       { property: data.property, status: "scheduled" },
       { $set: { status: "cancelled" } },
+      { session },
+    );
+    await Application.updateMany(
+      { property: data.property, status: "submitted" },
+      {
+        $set: {
+          status: "rejected",
+          open: false,
+          decisionNote: "A lease was created for this home.",
+        },
+      },
       { session },
     );
   });

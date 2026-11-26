@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import Applications from "../components/Applications";
 import { Alert, Button, Tab, Tabs } from "@mui/material";
 import { useAuth } from "../App";
 import { api, money, date, dateTime } from "../api";
@@ -60,7 +61,10 @@ function Table({ headers, children }) {
 export default function Dashboard() {
   const { user } = useAuth(),
     isStaff = user.role !== "client";
-  const [tab, setTab] = useState("overview"),
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(
+      params.get("tab") === "applications" ? "applications" : "overview",
+    ),
     [data, setData] = useState(null),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
@@ -182,6 +186,7 @@ export default function Dashboard() {
   const tabs = [
     "overview",
     ...(isStaff ? ["properties"] : []),
+    "applications",
     "viewings",
     "rentals",
     "maintenance",
@@ -229,6 +234,9 @@ export default function Dashboard() {
         ))}
       </Tabs>
       <section className="workspace-panel">
+        {tab === "applications" && (
+          <Applications isStaff={isStaff} onChanged={load} />
+        )}
         {tab === "overview" && (
           <>
             <div className="stats">
@@ -345,7 +353,7 @@ export default function Dashboard() {
                     </td>
                     <td>
                       <Button
-                        disabled={p.status === "rented"}
+                        disabled={["rented", "reserved"].includes(p.status)}
                         onClick={() =>
                           form(
                             "Edit property",
@@ -360,7 +368,7 @@ export default function Dashboard() {
                       </Button>
                       <Button
                         color="warning"
-                        disabled={p.status === "rented"}
+                        disabled={["rented", "reserved"].includes(p.status)}
                         onClick={() =>
                           confirm(
                             "Archive this property?",
@@ -378,7 +386,8 @@ export default function Dashboard() {
               </Table>
             )}
             <p className="muted">
-              Close an active lease before editing or archiving its property.
+              Close the active lease or withdraw the approved application before
+              editing or archiving its property.
             </p>
           </>
         )}
@@ -521,7 +530,8 @@ export default function Dashboard() {
             </div>
             <p className="muted">
               Balances include the deposit and monthly instalments due so far.
-              Payments are recorded receipts, not online charges.
+              Manual receipts record payments received outside the app. Demo
+              checkout receipts simulate payments; no real money is charged.
             </p>
             {!data.rentals.length ? (
               <Empty>No rental agreements yet.</Empty>
@@ -531,6 +541,12 @@ export default function Dashboard() {
                   <div className="section-heading">
                     <div>
                       <h3>{r.property?.title}</h3>
+                      {r.simulated && (
+                        <Alert severity="info">
+                          Demo lease — checkout payment was simulated, not
+                          collected.
+                        </Alert>
+                      )}
                       <p>
                         {isStaff ? r.client?.name + " · " : ""}
                         {date(r.startDate)} — {date(r.endDate)}
@@ -616,7 +632,11 @@ export default function Dashboard() {
                           <tr key={p._id}>
                             <td>{date(p.date)}</td>
                             <td>{money(p.amount)}</td>
-                            <td>{p.method.replaceAll("_", " ")}</td>
+                            <td>
+                              {p.testMode
+                                ? "Demo payment — no charge"
+                                : p.method.replaceAll("_", " ")}
+                            </td>
                             <td>{p.reference}</td>
                           </tr>
                         ))}

@@ -42,11 +42,12 @@ The running system is React/JSX + Express/Node.js + MongoDB. The legacy SQL sche
 
 ## Boundaries
 
-- Monetary amounts are USD; no payment gateway or sensitive card data.
+- Monetary amounts are USD; checkout simulates success/decline without a payment gateway or card data.
+- Direct rental applications include staff review, versioned demo agreement acceptance, reservations and demo receipts.
 - Staff explicitly close expired leases; no background scheduler.
 - Staff notifications are dashboard-based, not push messages or emails.
 - One active/future-reserved lease per property; no multiple future bookings.
 - Email requires a separately configured SMTP provider in production.
-- No password recovery, e-signature, uploads, refunds, payroll or branch-scoped staff permissions.
+- No password recovery, legally binding e-signature, uploads, refunds, payroll or branch-scoped staff permissions.
 - Historical SQL data is not automatically imported. The MongoDB seed creates new example data.
 - Hosted deployment and email delivery must be verified against the user's own accounts.

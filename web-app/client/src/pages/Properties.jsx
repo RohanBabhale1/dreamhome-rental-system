@@ -322,6 +322,8 @@ export function PropertyDetail() {
   const [property, setProperty] = useState(null),
     [error, setError] = useState(""),
     [booking, setBooking] = useState(false),
+    [applying, setApplying] = useState(false),
+    [applicationSent, setApplicationSent] = useState(false),
     [message, setMessage] = useState("");
   useEffect(() => {
     let active = true;
@@ -400,6 +402,36 @@ export function PropertyDetail() {
         <aside className="booking-card">
           <p>MONTHLY RENT</p>
           <h2>{money(property.rent)}</h2>
+          <p>Ready to rent? Apply online without booking a viewing.</p>
+          {applicationSent && (
+            <Alert severity="success">
+              Application submitted for staff review.{" "}
+              <Link to="/dashboard?tab=applications">View application</Link>
+            </Alert>
+          )}
+          {!user ? (
+            <Button
+              component={Link}
+              to="/login"
+              variant="outlined"
+              fullWidth
+              sx={{ mb: 2 }}
+            >
+              Sign in to apply to rent
+            </Button>
+          ) : (
+            user.role === "client" && (
+              <Button
+                variant="contained"
+                fullWidth
+                sx={{ mb: 2 }}
+                disabled={property.status !== "available" || applicationSent}
+                onClick={() => setApplying(true)}
+              >
+                Apply to rent
+              </Button>
+            )
+          )}
           <p>See the space in person. Viewing appointments last 30 minutes.</p>
           {message && (
             <Alert severity="success">
@@ -430,6 +462,42 @@ export function PropertyDetail() {
           </p>
         </aside>
       </div>
+      {applying && (
+        <FormDialog
+          title="Apply to rent — no viewing required"
+          submitLabel="Submit application"
+          fields={[
+            {
+              name: "preferredStart",
+              label: "Preferred move-in date",
+              type: "date",
+              min: new Date().toISOString().slice(0, 10),
+            },
+            {
+              name: "occupants",
+              label: "Number of occupants",
+              type: "number",
+              min: 1,
+              max: 20,
+            },
+            {
+              name: "message",
+              label: "Message to the property team",
+              multiline: true,
+              required: false,
+            },
+          ]}
+          initial={{ occupants: 1 }}
+          onClose={() => setApplying(false)}
+          onSave={async (values) => {
+            await api("/applications", {
+              method: "POST",
+              body: { ...values, property: id },
+            });
+            setApplicationSent(true);
+          }}
+        />
+      )}
       {booking && (
         <FormDialog
           title="Arrange your viewing"

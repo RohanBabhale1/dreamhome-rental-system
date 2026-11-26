@@ -40,24 +40,21 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/properties", require("./routes/properties"));
 app.use("/api/viewings", require("./routes/viewings"));
 app.use("/api/rentals", require("./routes/rentals"));
+app.use("/api/applications", require("./routes/applications"));
 app.use("/api", require("./routes/operations"));
 app.use((req, res) => res.status(404).json({ message: "Endpoint not found" }));
 app.use((error, req, res, next) => {
   if (error.name === "ZodError")
-    return res
-      .status(400)
-      .json({
-        message: error.issues
-          .map((i) => i.path.join(".") + ": " + i.message)
-          .join("; "),
-      });
+    return res.status(400).json({
+      message: error.issues
+        .map((i) => i.path.join(".") + ": " + i.message)
+        .join("; "),
+    });
   if (error.code === 11000)
-    return res
-      .status(409)
-      .json({
-        message:
-          "This record or time slot already exists. Refresh and try another.",
-      });
+    return res.status(409).json({
+      message:
+        "This record or time slot already exists. Refresh and try another.",
+    });
   if (error.name === "CastError" || error.type === "entity.parse.failed")
     return res.status(400).json({ message: "Invalid request" });
   if (error.status)

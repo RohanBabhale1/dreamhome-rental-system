@@ -110,7 +110,7 @@ router.put("/:id", auth, staff, async (req, res) => {
     {
       _id: id.parse(req.params.id),
       archived: false,
-      status: { $ne: "rented" },
+      status: { $nin: ["rented", "reserved"] },
     },
     { $set: value, $inc: { revision: 1 } },
     { new: true },
@@ -120,18 +120,19 @@ router.put("/:id", auth, staff, async (req, res) => {
 });
 router.delete("/:id", auth, staff, async (req, res) => {
   const mongoose = require("mongoose");
-  const { Viewing, Maintenance } = require("../models");
+  const { Viewing, Maintenance, Application } = require("../models");
   await mongoose.connection.transaction(async (session) => {
     const property = await Property.findOneAndUpdate(
       {
         _id: id.parse(req.params.id),
         archived: false,
-        status: { $ne: "rented" },
+        status: { $nin: ["rented", "reserved"] },
       },
       { $set: { archived: true }, $inc: { revision: 1 } },
       { session, new: true },
     );
-    if (!property) fail(409, "Rented properties cannot be archived");
+    if (!property)
+      fail(409, "Rented or reserved properties cannot be archived");
     if (
       (await Viewing.exists({
         property: property._id,
@@ -143,6 +144,17 @@ router.delete("/:id", auth, staff, async (req, res) => {
       }).session(session))
     )
       fail(409, "Resolve scheduled viewings and open maintenance first");
+    await Application.updateMany(
+      { property: property._id, status: "submitted" },
+      {
+        $set: {
+          status: "rejected",
+          open: false,
+          decisionNote: "This listing was archived.",
+        },
+      },
+      { session },
+    );
   });
   res.json({ message: "Property archived; historical records retained" });
 });
