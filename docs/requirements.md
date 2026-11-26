@@ -1,38 +1,52 @@
-# DreamHome Requirements Specification
+# DreamHome Requirements and Implementation
 
-## Functional Requirements
+## Scope
 
-### FR1: User Management
-- FR1.1: System shall support user registration with email verification
-- FR1.2: System shall support secure login with password hashing
-- FR1.3: System shall support two user roles: client and staff
+The running system is React/JSX + Express/Node.js + MongoDB. The legacy SQL schema remains a reference; `web-app/server/models.js` defines the active data model. See [README](README.md) for operational rules and deployment.
 
-### FR2: Property Management
-- FR2.1: Staff shall be able to add, edit, delete properties via web interface
-- FR2.2: Clients shall be able to browse and search properties
-- FR2.3: System shall support property filtering by location, type, price, bedrooms
+## Functional requirements
 
-### FR3: Rental Management
-- FR3.1: Staff shall be able to create rental agreements
-- FR3.2: System shall track rental start/end dates
-- FR3.3: System shall calculate and track payments
+| ID    | Requirement                          | Implementation                                                                                                       |
+| ----- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| FR1.1 | Registration with email verification | Client registration, bcrypt hashes, hashed 24-hour single-use tokens, SMTP delivery, resend and verification screens |
+| FR1.2 | Secure login                         | Verified users only; one-day JWT in HTTP-only cookie; logout; current user endpoint                                  |
+| FR1.3 | Client/staff roles                   | Server-side staff and ownership checks; admin-only staff promotion; no role selection at registration                |
+| FR2.1 | Staff property CRUD                  | Full create/edit forms, archive action, lease/history protection                                                     |
+| FR2.2 | Browse/search properties             | Listing/detail pages, image fallback, availability filter                                                            |
+| FR2.3 | Location/type/rent/bedroom filters   | Validated API filters, price sorting and 12-item pages                                                               |
+| FR3.1 | Create rental agreements             | Staff selects verified client and available property; transactional reservation                                      |
+| FR3.2 | Track start/end dates                | Active/completed/terminated lifecycle, exclusive end dates, explicit release by staff                                |
+| FR3.3 | Calculate and track payments         | Due instalments, deposit, receipt ledger, balances/credits and print statements                                      |
+| FR4.1 | Client viewing scheduling            | Future 30-minute slots within 90 days; client-owned records                                                          |
+| FR4.2 | Staff viewing notifications          | Dashboard list/count, schedule view and manual refresh                                                               |
+| FR4.3 | Prevent double-booking               | Partial unique MongoDB indexes for property-slot and client-slot; transaction locks                                  |
+| FR5.1 | Maintenance requests                 | Current tenants report issues for their home; staff can report issues                                                |
+| FR5.2 | Maintenance handling                 | Priority, pending/in-progress/completed, required completion resolution                                              |
+| FR6.1 | Branch management                    | Add/edit branches; associate properties with a branch                                                                |
+| FR6.2 | Client management                    | Staff directory of verified/unverified accounts, contacts and roles                                                  |
 
-### FR4: Viewing Management
-- FR4.1: Clients shall be able to schedule property viewings
-- FR4.2: Staff shall receive viewing notifications
-- FR4.3: System shall prevent double-booking of viewings
+## Non-functional requirements
 
-## Non-Functional Requirements
+| Requirement                              | Handling / validation                                                                                     |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Fast query responses                     | Indexed availability/location, paginated public search, small cached database pool, lazy-loaded dashboard |
+| Under two seconds / 100 concurrent users | Original target retained; not benchmarked or guaranteed on free tiers                                     |
+| Password security                        | bcrypt, 10-character minimum and 72-byte maximum at registration                                          |
+| API authentication                       | JWT signature verification; current DB role checked on every protected request                            |
+| Input/query safety                       | Zod schemas, explicit field allowlists, escaped city regex; Mongoose replaces SQL prepared statements     |
+| Concurrency consistency                  | MongoDB replica-set transactions plus unique indexes; concurrent-request tests                            |
+| Browser security                         | Same-origin API, HTTP-only cookies, origin checks, Helmet headers                                         |
+| Abuse controls                           | MongoDB-backed 15-minute authentication request buckets with TTL expiry                                   |
+| Responsive usability                     | Material UI forms, responsive layout, keyboard-operable controls and scrollable tables                    |
+| Reliability                              | Error/loading/empty states; integration tests; browser workflow checks; history-preserving archive        |
 
-### NFR1: Performance
-- System shall respond to queries within 2 seconds
-- System shall support 100 concurrent users
+## Boundaries
 
-### NFR2: Security
-- Passwords shall be hashed using bcrypt
-- API shall use JWT for authentication
-- Database connections shall use prepared statements
-
-### NFR3: Usability
-- Web interface shall be responsive
-- Interface shall follow Material Design principles
+- Monetary amounts are USD; no payment gateway or sensitive card data.
+- Staff explicitly close expired leases; no background scheduler.
+- Staff notifications are dashboard-based, not push messages or emails.
+- One active/future-reserved lease per property; no multiple future bookings.
+- Email requires a separately configured SMTP provider in production.
+- No password recovery, e-signature, uploads, refunds, payroll or branch-scoped staff permissions.
+- Historical SQL data is not automatically imported. The MongoDB seed creates new example data.
+- Hosted deployment and email delivery must be verified against the user's own accounts.

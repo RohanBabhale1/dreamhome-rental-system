@@ -2,6 +2,12 @@
 node_modules/
 npm-debug.log
 .env
+atlas-credentials.env
+.env.*
+!.env.example
+.vercel/
+test-results/
+playwright-report/
 dist/
 build/
 

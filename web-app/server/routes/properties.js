@@ -1,115 +1,149 @@
-const express = require('express');
-const router = express.Router();
-const db = require('../config/database');
-
-// Get all properties
-router.get('/', async (req, res) => {
-  try {
-    const { city, type, minRent, maxRent, bedrooms } = req.query;
-    
-    let query = 'SELECT * FROM properties WHERE status = "available"';
-    const params = [];
-
-    if (city) {
-      query += ' AND city = ?';
-      params.push(city);
-    }
-    if (type) {
-      query += ' AND property_type = ?';
-      params.push(type);
-    }
-    if (minRent) {
-      query += ' AND rent_amount >= ?';
-      params.push(minRent);
-    }
-    if (maxRent) {
-      query += ' AND rent_amount <= ?';
-      params.push(maxRent);
-    }
-    if (bedrooms) {
-      query += ' AND bedrooms >= ?';
-      params.push(bedrooms);
-    }
-
-    const [properties] = await db.query(query, params);
-    res.json(properties);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
+const router = require("express").Router();
+const { Property, Branch } = require("../models");
+const { z, id, text, money, fail, auth, staff } = require("../lib");
+const schema = z.object({
+  title: text,
+  address: text,
+  city: text,
+  state: z.string().max(100).default(""),
+  postalCode: z.string().max(20).default(""),
+  type: z.enum(["apartment", "house", "condo", "villa"]),
+  bedrooms: z.coerce.number().int().min(0).max(50),
+  bathrooms: z.coerce.number().int().min(1).max(50),
+  squareFeet: z.coerce.number().int().min(1).max(1000000),
+  rent: money,
+  description: z.string().trim().min(10).max(5000),
+  imageUrl: z
+    .union([
+      z.literal(""),
+      z
+        .string()
+        .regex(
+          /^\/images\/homes\/\d+\.jpg$/,
+          "Choose a bundled home photo or an HTTPS image URL",
+        ),
+      z.url().refine((v) => v.startsWith("https://"), "Use an HTTPS image URL"),
+    ])
+    .default(""),
+  branch: z.union([id, z.literal("")]).optional(),
+  status: z.enum(["available", "maintenance"]).optional(),
 });
-
-// Get property by ID
-router.get('/:id', async (req, res) => {
-  try {
-    const [properties] = await db.query('SELECT * FROM properties WHERE property_id = ?', [req.params.id]);
-    
-    if (properties.length === 0) {
-      return res.status(404).json({ message: 'Property not found' });
-    }
-
-    res.json(properties[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-router.get('/all', async (req, res) => {
-  try {
-    const [properties] = await db.query('SELECT * FROM properties ORDER BY created_at DESC');
-    res.json(properties);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Update property - Staff only
-router.put('/:id', async (req, res) => {
-  try {
-    const { address, city, state, propertyType, bedrooms, bathrooms, rentAmount, status } = req.body;
-    
-    await db.query(
-      `UPDATE properties SET address = ?, city = ?, state = ?, property_type = ?, 
-       bedrooms = ?, bathrooms = ?, rent_amount = ?, status = ? WHERE property_id = ?`,
-      [address, city, state, propertyType, bedrooms, bathrooms, rentAmount, status, req.params.id]
+router.get("/all", auth, staff, async (req, res) =>
+  res.json(
+    await Property.find({ archived: false })
+      .populate("branch")
+      .sort({ createdAt: -1 }),
+  ),
+);
+router.get("/", async (req, res) => {
+  const q = z
+    .object({
+      city: z.string().max(100).optional(),
+      type: z.enum(["apartment", "house", "condo", "villa"]).optional(),
+      minRent: z.coerce.number().min(0).optional(),
+      maxRent: z.coerce.number().min(0).optional(),
+      bedrooms: z.coerce.number().int().min(0).optional(),
+      page: z.coerce.number().int().min(1).max(10000).default(1),
+      sort: z.enum(["newest", "price_asc", "price_desc"]).default("newest"),
+    })
+    .parse(req.query);
+  if (
+    q.minRent !== undefined &&
+    q.maxRent !== undefined &&
+    q.minRent > q.maxRent
+  )
+    fail(400, "Minimum rent cannot exceed maximum rent");
+  const filter = { status: "available", archived: false };
+  if (q.city)
+    filter.city = new RegExp(
+      q.city.replace(/[.*+?^$\{\}()|[\]\\]/g, "\\$&"),
+      "i",
     );
-    
-    res.json({ message: 'Property updated successfully' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
+  if (q.type) filter.type = q.type;
+  if (q.bedrooms !== undefined) filter.bedrooms = { $gte: q.bedrooms };
+  if (q.minRent !== undefined || q.maxRent !== undefined)
+    filter.rent = {
+      ...(q.minRent !== undefined ? { $gte: q.minRent } : {}),
+      ...(q.maxRent !== undefined ? { $lte: q.maxRent } : {}),
+    };
+  const [items, total, cities] = await Promise.all([
+    Property.find(filter)
+      .sort(
+        q.sort === "newest"
+          ? { createdAt: -1 }
+          : { rent: q.sort === "price_asc" ? 1 : -1 },
+      )
+      .skip((q.page - 1) * 12)
+      .limit(12),
+    Property.countDocuments(filter),
+    Property.distinct("city", { status: "available", archived: false }),
+  ]);
+  res.json({
+    items,
+    total,
+    page: q.page,
+    pages: Math.ceil(total / 12),
+    cities: cities.filter(Boolean).sort((a, b) => a.localeCompare(b)),
+  });
 });
-
-// Add new property - Staff only
-router.post('/', async (req, res) => {
-  try {
-    const { address, city, state, propertyType, bedrooms, bathrooms, rentAmount } = req.body;
-    
-    const [result] = await db.query(
-      `INSERT INTO properties (address, city, state, property_type, bedrooms, bathrooms, rent_amount, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'available')`,
-      [address, city, state, propertyType, bedrooms, bathrooms, rentAmount]
+router.get("/:id", async (req, res) => {
+  const property = await Property.findOne({
+    _id: id.parse(req.params.id),
+    archived: false,
+  }).populate("branch");
+  if (!property) fail(404, "Property not found");
+  res.json(property);
+});
+async function data(body) {
+  const value = schema.parse(body);
+  if (value.branch && !(await Branch.exists({ _id: value.branch })))
+    fail(400, "Branch not found");
+  value.branch = value.branch || null;
+  return value;
+}
+router.post("/", auth, staff, async (req, res) =>
+  res.status(201).json(await Property.create(await data(req.body))),
+);
+router.put("/:id", auth, staff, async (req, res) => {
+  const value = await data(req.body);
+  const property = await Property.findOneAndUpdate(
+    {
+      _id: id.parse(req.params.id),
+      archived: false,
+      status: { $ne: "rented" },
+    },
+    { $set: value, $inc: { revision: 1 } },
+    { new: true },
+  );
+  if (!property) fail(409, "Property is rented or unavailable for editing");
+  res.json(property);
+});
+router.delete("/:id", auth, staff, async (req, res) => {
+  const mongoose = require("mongoose");
+  const { Viewing, Maintenance } = require("../models");
+  await mongoose.connection.transaction(async (session) => {
+    const property = await Property.findOneAndUpdate(
+      {
+        _id: id.parse(req.params.id),
+        archived: false,
+        status: { $ne: "rented" },
+      },
+      { $set: { archived: true }, $inc: { revision: 1 } },
+      { session, new: true },
     );
-    
-    res.status(201).json({ propertyId: result.insertId, message: 'Property added successfully' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
+    if (!property) fail(409, "Rented properties cannot be archived");
+    if (
+      (await Viewing.exists({
+        property: property._id,
+        status: "scheduled",
+      }).session(session)) ||
+      (await Maintenance.exists({
+        property: property._id,
+        status: { $ne: "completed" },
+      }).session(session))
+    )
+      fail(409, "Resolve scheduled viewings and open maintenance first");
+  });
+  res.json({ message: "Property archived; historical records retained" });
 });
-
-// Delete property - Staff only
-router.delete('/:id', async (req, res) => {
-  try {
-    await db.query('DELETE FROM properties WHERE property_id = ?', [req.params.id]);
-    res.json({ message: 'Property deleted successfully' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
 module.exports = router;

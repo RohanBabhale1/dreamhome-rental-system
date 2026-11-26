@@ -1,0 +1,27 @@
+{
+  "name": "dreamhome-rental-system",
+  "version": "2.0.0",
+  "private": true,
+  "workspaces": [
+    "web-app/client",
+    "web-app/server"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev -w web-app/server\" \"npm run dev -w web-app/client\"",
+    "build": "npm run build -w web-app/client",
+    "start": "npm start -w web-app/server",
+    "test": "npm test -w web-app/server",
+    "seed": "npm run seed -w web-app/server",
+    "test:browser": "npm run build && node scripts/browser-smoke.cjs",
+    "format": "prettier --write .",
+    "seed:homes": "node web-app/server/scripts/seed-homes.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "concurrently": "^9.2.1",
+    "prettier": "^3.10.1"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

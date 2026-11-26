@@ -1,0 +1,48 @@
+{
+  "provider": "Pexels",
+  "license": "https://www.pexels.com/license/",
+  "usage": "Illustrative stock photography for fictional demo rentals; photographs are not evidence of the listed location or availability.",
+  "downloadedOn": "2026-11-26",
+  "photos": [
+    {
+      "file": "106399.jpg",
+      "source": "https://www.pexels.com/photo/106399/",
+      "download": "https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=1200"
+    },
+    {
+      "file": "1396122.jpg",
+      "source": "https://www.pexels.com/photo/1396122/",
+      "download": "https://images.pexels.com/photos/1396122/pexels-photo-1396122.jpeg?auto=compress&cs=tinysrgb&w=1200"
+    },
+    {
+      "file": "323780.jpg",
+      "source": "https://www.pexels.com/photo/323780/",
+      "download": "https://images.pexels.com/photos/323780/pexels-photo-323780.jpeg?auto=compress&cs=tinysrgb&w=1200"
+    },
+    {
+      "file": "186077.jpg",
+      "source": "https://www.pexels.com/photo/186077/",
+      "download": "https://images.pexels.com/photos/186077/pexels-photo-186077.jpeg?auto=compress&cs=tinysrgb&w=1200"
+    },
+    {
+      "file": "1643383.jpg",
+      "source": "https://www.pexels.com/photo/1643383/",
+      "download": "https://images.pexels.com/photos/1643383/pexels-photo-1643383.jpeg?auto=compress&cs=tinysrgb&w=1200"
+    },
+    {
+      "file": "1571460.jpg",
+      "source": "https://www.pexels.com/photo/1571460/",
+      "download": "https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg?auto=compress&cs=tinysrgb&w=1200"
+    },
+    {
+      "file": "259588.jpg",
+      "source": "https://www.pexels.com/photo/259588/",
+      "download": "https://images.pexels.com/photos/259588/pexels-photo-259588.jpeg?auto=compress&cs=tinysrgb&w=1200"
+    },
+    {
+      "file": "280222.jpg",
+      "source": "https://www.pexels.com/photo/280222/",
+      "download": "https://images.pexels.com/photos/280222/pexels-photo-280222.jpeg?auto=compress&cs=tinysrgb&w=1200"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+-- Historical MySQL reference only. The running app uses web-app/server/models.js (MongoDB).
 -- DreamHome Database Schema
 
 CREATE DATABASE IF NOT EXISTS dreamhome;

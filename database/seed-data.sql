@@ -1,3 +1,4 @@
+-- Historical MySQL reference only. Use npm run seed for the current MongoDB application.
 -- DreamHome Sample Data
 
 USE dreamhome;
