@@ -6,6 +6,7 @@ const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(helmet());
+app.use("/api/images", express.json({ limit: "2mb" }));
 app.use(express.json({ limit: "64kb" }));
 app.use((req, res, next) => {
   req.body ??= {};
@@ -36,6 +37,7 @@ app.use("/api", async (req, res, next) => {
 app.get("/api/health", (req, res) =>
   res.json({ status: "ok", database: "connected" }),
 );
+app.use("/api/images", require("./routes/images"));
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/properties", require("./routes/properties"));
 app.use("/api/viewings", require("./routes/viewings"));

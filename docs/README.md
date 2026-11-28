@@ -307,3 +307,11 @@ Authenticated endpoints:
 No new environment variables, gateway accounts or payment keys are needed. The demo endpoint accepts an outcome and explicit simulation acknowledgement, never card details or client-provided amounts. For a real product, replace browser-selected outcomes with a gateway adapter and verified server-side webhook fulfillment, plus appropriate contract, cancellation and refund handling. Never reuse simulated receipts as evidence of payment.
 
 `npm test` covers ownership, agreement consent/version, competing approvals, retries, duplicate payments, withdrawal and archival. `npm run test:browser` also exercises the full application/approval/acceptance/decline/success flow using an isolated database and Chrome.
+
+## Updated visit, contact and upload workflow
+
+See the root README section on house photos and verification order for the current flow. Previous descriptions of immediate checkout after acceptance are superseded: applicant visit/document confirmations and staff handover readiness now gate approval/payment. Existing unpaid applications must complete the new checks; paid history is retained.
+
+New API endpoints: staff `POST /api/images` accepts a base64 image, public `GET /api/images/:id` serves a decoded JPEG; applicant `POST /api/applications/:id/verification` records explicit visit/document confirmations; staff `POST /api/applications/:id/handover` records an execution reference after acceptance. Checkout additionally requires the client's `signingAndKeysConfirmed: true` acknowledgement. Agreement approval now requires notice, lock-in, maintenance, escalation and payment-plan fields.
+
+Images live in a separate HomeImage collection so listing queries do not return binary payloads. Storage counts against the Atlas quota. Cancelling a form or replacing a photo does not delete the old image; orphan cleanup and migration to object storage are future improvements. Upload permission is staff-only. Photos are public; never upload documents or private identification. The 2 MB JSON parser is scoped to image routes; ordinary APIs retain their smaller body limit.

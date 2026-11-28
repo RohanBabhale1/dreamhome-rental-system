@@ -131,6 +131,17 @@ async function main() {
     await page.getByRole("tab", { name: "properties", exact: true }).click();
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await page.getByLabel("Property title").fill("Oak Street Retreat");
+    await page.getByLabel("Owner / authorized contact name").fill("Demo Owner");
+    await page.getByLabel("Owner contact phone").fill("+12025550123");
+    const png = await require("sharp")({
+      create: { width: 30, height: 30, channels: 3, background: "green" },
+    })
+      .png()
+      .toBuffer();
+    await page
+      .getByLabel("Upload house photo")
+      .setInputFiles({ name: "home.png", mimeType: "image/png", buffer: png });
+    await expect(page.getByAltText("Selected house photo")).toBeVisible();
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(
       page.getByRole("link", { name: "Oak Street Retreat" }),
@@ -210,6 +221,13 @@ async function main() {
     await expect(
       page.getByText("Application submitted", { exact: false }),
     ).toBeVisible();
+    await page.goto(process.env.APP_URL + "/dashboard?tab=applications");
+    await page
+      .getByRole("button", { name: "Confirm visit and ownership review" })
+      .click();
+    for (const checkbox of await page.getByRole("checkbox").all())
+      await checkbox.check();
+    await page.getByRole("button", { name: "Confirm checks" }).click();
     const staffPage = await browser.newPage();
     staffPage.on("pageerror", (error) => errors.push(error.message));
     await staffPage.goto(process.env.APP_URL + "/login");
@@ -224,6 +242,13 @@ async function main() {
     await staffPage
       .getByRole("button", { name: "Approve and set terms" })
       .click();
+    await staffPage.getByLabel("Agreed notice period (days)").fill("30");
+    await staffPage.getByLabel("Agreed lock-in (months)").fill("0");
+    await staffPage.getByLabel("Monthly maintenance charge ($)").fill("0");
+    await staffPage.getByLabel("Agreed annual rent increase (%)").fill("0");
+    await staffPage
+      .getByLabel("Deposit/payment plan and reference (demo only)")
+      .fill("Demo payment at signing");
     await staffPage
       .getByLabel("Lease end date (exclusive)")
       .fill(end.toISOString().slice(0, 10));
@@ -240,12 +265,25 @@ async function main() {
     await page
       .getByRole("button", { name: "Accept agreement", exact: true })
       .click();
+    await staffPage
+      .getByRole("button", { name: "Refresh applications" })
+      .click();
+    await staffPage
+      .getByRole("button", { name: "Confirm signing / key handover" })
+      .click();
+    await staffPage
+      .getByLabel("Agreement execution / handover reference")
+      .fill("Demo signing and keys appointment");
+    await staffPage.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(staffPage.getByRole("dialog")).toHaveCount(0);
+    await page.getByRole("button", { name: "Refresh applications" }).click();
     await page
       .getByRole("button", {
         name: "Pay deposit & first month (demo)",
         exact: true,
       })
       .click();
+    await page.getByRole("checkbox").check();
     await page
       .getByRole("button", { name: "Simulate decline", exact: true })
       .click();

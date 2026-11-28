@@ -391,6 +391,31 @@ export function PropertyDetail() {
             {property.bedrooms} bedrooms · {property.bathrooms} bathrooms ·{" "}
             {property.squareFeet} sq ft · {property.type}
           </div>
+          <h2>Owner contact</h2>
+          {property.ownerName ? (
+            <div>
+              <p>{property.ownerName}</p>
+              <p>
+                <a href={"tel:" + property.ownerPhone}>{property.ownerPhone}</a>
+              </p>
+              {property.ownerEmail && (
+                <a href={"mailto:" + property.ownerEmail}>
+                  {property.ownerEmail}
+                </a>
+              )}
+            </div>
+          ) : (
+            <p>
+              Owner contact has not been provided. Contact the managing branch
+              before proceeding.
+            </p>
+          )}
+          <Alert severity="info">
+            Contact details are supplied by staff, not independently verified.
+            Visit the home, check water, seepage, electrical condition and
+            neighborhood safety, and review ownership documents before any
+            payment. Do not rely on photographs alone.
+          </Alert>
           <h2>Space to make your own</h2>
           <p className="description">{property.description}</p>
           {property.branch && (
@@ -402,7 +427,10 @@ export function PropertyDetail() {
         <aside className="booking-card">
           <p>MONTHLY RENT</p>
           <h2>{money(property.rent)}</h2>
-          <p>Ready to rent? Apply online without booking a viewing.</p>
+          <p>
+            Apply online, then confirm an in-person visit and ownership-document
+            review before approval. No token advance is required in this demo.
+          </p>
           {applicationSent && (
             <Alert severity="success">
               Application submitted for staff review.{" "}

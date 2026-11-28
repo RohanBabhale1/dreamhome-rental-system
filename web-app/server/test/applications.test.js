@@ -13,6 +13,11 @@ let mongo, admin, client, other, clientId, home;
 const dateString = (offset) =>
   new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
 const terms = {
+  noticeDays: 30,
+  lockInMonths: 0,
+  maintenanceCharge: 0,
+  annualIncreasePercent: 0,
+  paymentPlan: "Demo transfer at signing and key handover",
   startDate: dateString(1),
   endDate: dateString(366),
   monthlyRent: 1250.25,
@@ -63,14 +68,12 @@ after(async () => {
   if (mongo) await mongo.stop();
 });
 const apply = (agent, property = home._id) =>
-  agent
-    .post("/api/applications")
-    .send({
-      property: String(property),
-      preferredStart: dateString(1),
-      occupants: 2,
-      message: "Applying without a viewing.",
-    });
+  agent.post("/api/applications").send({
+    property: String(property),
+    preferredStart: dateString(1),
+    occupants: 2,
+    message: "Applying without a viewing.",
+  });
 test("application approval, acceptance and demo checkout", async (t) => {
   let application, competing;
   await t.test(
@@ -93,7 +96,11 @@ test("application approval, acceptance and demo checkout", async (t) => {
         .expect(403);
       await client
         .post("/api/applications/" + application._id + "/simulate-payment")
-        .send({ outcome: "success", confirmSimulation: true })
+        .send({
+          outcome: "success",
+          confirmSimulation: true,
+          signingAndKeysConfirmed: true,
+        })
         .expect(409);
     },
   );
@@ -104,6 +111,26 @@ test("application approval, acceptance and demo checkout", async (t) => {
         .post("/api/applications/" + application._id + "/approve")
         .send({ ...terms, endDate: terms.startDate })
         .expect(400);
+      await admin
+        .post("/api/applications/" + application._id + "/approve")
+        .send(terms)
+        .expect(409);
+      await other
+        .post("/api/applications/" + application._id + "/verification")
+        .send({ visited: true, ownershipReviewed: true })
+        .expect(409);
+      await client
+        .post("/api/applications/" + application._id + "/verification")
+        .send({ visited: false, ownershipReviewed: true })
+        .expect(400);
+      await client
+        .post("/api/applications/" + application._id + "/verification")
+        .send({ visited: true, ownershipReviewed: true })
+        .expect(200);
+      await other
+        .post("/api/applications/" + competing._id + "/verification")
+        .send({ visited: true, ownershipReviewed: true })
+        .expect(200);
       const results = await Promise.all(
         [application, competing].map((a) =>
           admin.post("/api/applications/" + a._id + "/approve").send(terms),
@@ -170,9 +197,29 @@ test("application approval, acceptance and demo checkout", async (t) => {
   await t.test(
     "declines are retryable and do not create money or leases",
     async () => {
+      await client
+        .post("/api/applications/" + application._id + "/simulate-payment")
+        .send({
+          outcome: "success",
+          confirmSimulation: true,
+          signingAndKeysConfirmed: true,
+        })
+        .expect(409);
+      await client
+        .post("/api/applications/" + application._id + "/handover")
+        .send({ reference: "Demo execution", ready: true })
+        .expect(403);
+      await admin
+        .post("/api/applications/" + application._id + "/handover")
+        .send({ reference: "Demo execution and keys", ready: true })
+        .expect(200);
       const response = await client
         .post("/api/applications/" + application._id + "/simulate-payment")
-        .send({ outcome: "failure", confirmSimulation: true })
+        .send({
+          outcome: "failure",
+          confirmSimulation: true,
+          signingAndKeysConfirmed: true,
+        })
         .expect(200);
       assert.equal(response.body.status, "failed");
       assert.equal(await models.Rental.countDocuments(), 0);
@@ -183,11 +230,20 @@ test("application approval, acceptance and demo checkout", async (t) => {
       );
       await client
         .post("/api/applications/" + application._id + "/simulate-payment")
-        .send({ outcome: "success", confirmSimulation: true, amount: 1 })
+        .send({
+          outcome: "success",
+          confirmSimulation: true,
+          signingAndKeysConfirmed: true,
+          amount: 1,
+        })
         .expect(400);
       await other
         .post("/api/applications/" + application._id + "/simulate-payment")
-        .send({ outcome: "success", confirmSimulation: true })
+        .send({
+          outcome: "success",
+          confirmSimulation: true,
+          signingAndKeysConfirmed: true,
+        })
         .expect(404);
     },
   );
@@ -198,7 +254,11 @@ test("application approval, acceptance and demo checkout", async (t) => {
         [1, 2].map(() =>
           client
             .post("/api/applications/" + application._id + "/simulate-payment")
-            .send({ outcome: "success", confirmSimulation: true }),
+            .send({
+              outcome: "success",
+              confirmSimulation: true,
+              signingAndKeysConfirmed: true,
+            }),
         ),
       );
       assert.deepEqual(
@@ -235,6 +295,10 @@ test("withdrawal releases accepted reservations; rejection and archival close pe
     rent: 1250,
   });
   const application = (await apply(client, home2._id).expect(201)).body;
+  await client
+    .post("/api/applications/" + application._id + "/verification")
+    .send({ visited: true, ownershipReviewed: true })
+    .expect(200);
   const approved = (
     await admin
       .post("/api/applications/" + application._id + "/approve")
@@ -256,7 +320,11 @@ test("withdrawal releases accepted reservations; rejection and archival close pe
   assert.equal((await models.Property.findById(home2._id)).status, "available");
   await client
     .post("/api/applications/" + application._id + "/simulate-payment")
-    .send({ outcome: "success", confirmSimulation: true })
+    .send({
+      outcome: "success",
+      confirmSimulation: true,
+      signingAndKeysConfirmed: true,
+    })
     .expect(409);
   const retry = (await apply(client, home2._id).expect(201)).body;
   await admin
@@ -269,4 +337,60 @@ test("withdrawal releases accepted reservations; rejection and archival close pe
     (await models.Application.findById(archived._id)).status,
     "rejected",
   );
+});
+
+test("staff image uploads validate contents and serve durable JPEGs", async () => {
+  await client.post("/api/images").send({ image: "bad" }).expect(403);
+  await admin
+    .post("/api/images")
+    .send({ image: "data:image/png;base64,ZmFrZQ==" })
+    .expect(400);
+  await admin
+    .post("/api/images")
+    .send({ image: "data:image/svg+xml;base64,PHN2Zz4=" })
+    .expect(400);
+  const png = await require("sharp")({
+    create: { width: 4, height: 4, channels: 3, background: "red" },
+  })
+    .png()
+    .toBuffer();
+  const uploaded = await admin
+    .post("/api/images")
+    .send({ image: "data:image/png;base64," + png.toString("base64") })
+    .expect(201);
+  const listing = await admin
+    .post("/api/properties")
+    .send({
+      title: "Uploaded home",
+      address: "Sample Road",
+      city: "Boston",
+      type: "house",
+      bedrooms: 2,
+      bathrooms: 1,
+      squareFeet: 800,
+      rent: 1200,
+      description: "A fictional listing for testing.",
+      imageUrl: uploaded.body.imageUrl,
+      ownerName: "Demo Owner",
+      ownerPhone: "+12025550123",
+      ownerEmail: "owner@example.com",
+    })
+    .expect(201);
+  const publicListing = await request(app)
+    .get("/api/properties/" + listing.body._id)
+    .expect(200);
+  assert.equal(publicListing.body.imageUrl, uploaded.body.imageUrl);
+  assert.equal(publicListing.body.ownerPhone, "+12025550123");
+  const response = await request(app)
+    .get(uploaded.body.imageUrl)
+    .expect(200)
+    .expect("Content-Type", /image\/jpeg/);
+  assert.equal(
+    (await require("sharp")(response.body).metadata()).format,
+    "jpeg",
+  );
+  await admin
+    .put("/api/properties/" + new mongoose.Types.ObjectId())
+    .send({})
+    .expect(400);
 });

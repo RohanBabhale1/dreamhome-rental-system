@@ -15,7 +15,7 @@ import { api, money, date, dateTime } from "../api";
 import { Empty, Loading, Status, FormDialog } from "./UI";
 
 const initialTerms =
-  "Personal-project demonstration only. The approved monthly rent and deposit are shown above. The first monthly instalment and deposit are due at checkout. Later rent is due monthly on the lease start-date anniversary. No real funds are collected by this demo. Contact staff about repairs or ending the tenancy.";
+  "Review notice period, lock-in period, maintenance charges, escalation terms, deposit settlement and payment references with the owner. No token advance is required. Signing and key handover must be coordinated with balance payment. Personal-project demonstration only. The approved monthly rent and deposit are shown above. The first monthly instalment and deposit are due at checkout. Later rent is due monthly on the lease start-date anniversary. No real funds are collected by this demo. Contact staff about repairs or ending the tenancy.";
 function Agreement({ application }) {
   const a = application.agreement;
   if (!a?.version) return null;
@@ -42,6 +42,23 @@ function Agreement({ application }) {
           Due at checkout<strong>{money(a.monthlyRent + a.deposit)}</strong>
         </span>
       </div>
+      <p>
+        Notice: {a.noticeDays ?? "Not recorded"} days. Lock-in:{" "}
+        {a.lockInMonths ?? "Not recorded"} months. Maintenance:{" "}
+        {a.maintenanceCharge == null
+          ? "Not recorded"
+          : money(a.maintenanceCharge)}{" "}
+        per month. Annual increase: {a.annualIncreasePercent ?? "Not recorded"}
+        %.
+      </p>
+      <p>
+        Deposit/payment plan and references: {a.paymentPlan || "Not recorded"}
+      </p>
+      <p>
+        Maintenance charges and escalation are recorded terms; this demo does
+        not automatically bill them. Checkout covers the deposit and first month
+        only.
+      </p>
       <p className="description">{a.terms}</p>
       <small>Agreement version: {a.version}</small>
       {application.acceptedAt && (
@@ -124,6 +141,7 @@ function Acceptance({ application, onClose, onSave }) {
   );
 }
 function Checkout({ application, onClose, onPay }) {
+  const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   async function pay(outcome) {
@@ -160,19 +178,36 @@ function Checkout({ application, onClose, onPay }) {
           )}
         </h2>
         {error && <Alert severity="warning">{error}</Alert>}
-        <p>Choose an outcome to try the payment flow.</p>
+        <p>Staff handover reference: {application.handoverReference}</p>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+            />
+          }
+          label="I confirm signing and key handover are coordinated with this demo payment."
+        />
+        <p>
+          Choose an outcome to try the payment flow. No Aadhaar, biometrics or
+          bank details are collected.
+        </p>
       </DialogContent>
       <DialogActions sx={{ flexWrap: "wrap", gap: 1 }}>
         <Button disabled={busy} onClick={onClose}>
           Close
         </Button>
-        <Button color="warning" disabled={busy} onClick={() => pay("failure")}>
+        <Button
+          color="warning"
+          disabled={busy || !confirmed}
+          onClick={() => pay("failure")}
+        >
           Simulate decline
         </Button>
         <Button
           variant="contained"
           disabled={busy}
-          onClick={() => pay("success")}
+          onClick={() => confirmed && pay("success")}
         >
           Simulate successful payment
         </Button>
@@ -212,6 +247,39 @@ export default function Applications({ isStaff, onChanged }) {
       kind: "form",
       title: "Approve application and set terms",
       fields: [
+        {
+          name: "noticeDays",
+          label: "Agreed notice period (days)",
+          type: "number",
+          min: 0,
+          max: 365,
+        },
+        {
+          name: "lockInMonths",
+          label: "Agreed lock-in (months)",
+          type: "number",
+          min: 0,
+          max: 120,
+        },
+        {
+          name: "maintenanceCharge",
+          label: "Monthly maintenance charge ($)",
+          type: "number",
+          min: 0,
+          step: 0.01,
+        },
+        {
+          name: "annualIncreasePercent",
+          label: "Agreed annual rent increase (%)",
+          type: "number",
+          min: 0,
+          max: 100,
+          step: 0.01,
+        },
+        {
+          name: "paymentPlan",
+          label: "Deposit/payment plan and reference (demo only)",
+        },
         { name: "startDate", label: "Lease start date", type: "date" },
         { name: "endDate", label: "Lease end date (exclusive)", type: "date" },
         {
@@ -263,8 +331,10 @@ export default function Applications({ isStaff, onChanged }) {
         <div>
           <h2>Rental applications</h2>
           <p>
-            Apply without a viewing, review the agreement, then try demo
-            checkout.
+            Confirm your visit and ownership-document review, receive terms,
+            accept the agreement, then coordinate signing and key handover
+            before demo checkout. The optional token step is skipped; no token
+            is required.
           </p>
         </div>
         <Button onClick={() => load().catch((e) => setError(e.message))}>
@@ -331,10 +401,57 @@ export default function Applications({ isStaff, onChanged }) {
                 your application.
               </Alert>
             )}
+            <p>
+              Visit and ownership review:{" "}
+              {a.visitConfirmedAt && a.ownershipReviewedAt
+                ? "confirmed by applicant (not independently verified)"
+                : "awaiting applicant confirmation"}
+              . Signing / keys:{" "}
+              {a.handoverConfirmedAt
+                ? "confirmed by staff"
+                : "not yet confirmed"}
+              .
+            </p>
             <div className="actions">
+              {!isStaff &&
+                ["submitted", "approved", "accepted"].includes(a.status) &&
+                !a.visitConfirmedAt && (
+                  <Button
+                    onClick={() =>
+                      setDialog({ kind: "verification", application: a })
+                    }
+                  >
+                    Confirm visit and ownership review
+                  </Button>
+                )}
+              {isStaff && a.status === "accepted" && !a.handoverConfirmedAt && (
+                <Button
+                  onClick={() =>
+                    setDialog({
+                      kind: "form",
+                      title:
+                        "Confirm signing and key handover readiness (demo)",
+                      fields: [
+                        {
+                          name: "reference",
+                          label: "Agreement execution / handover reference",
+                        },
+                      ],
+                      onSave: (values) =>
+                        change(a, "handover", { ...values, ready: true }),
+                    })
+                  }
+                >
+                  Confirm signing / key handover
+                </Button>
+              )}
               {isStaff && a.status === "submitted" && (
                 <>
-                  <Button variant="contained" onClick={() => approve(a)}>
+                  <Button
+                    variant="contained"
+                    disabled={!a.visitConfirmedAt || !a.ownershipReviewedAt}
+                    onClick={() => approve(a)}
+                  >
                     Approve and set terms
                   </Button>
                   <Button color="warning" onClick={() => reason(a, "reject")}>
@@ -350,7 +467,7 @@ export default function Applications({ isStaff, onChanged }) {
                   Review and accept agreement
                 </Button>
               )}
-              {!isStaff && a.status === "accepted" && (
+              {!isStaff && a.status === "accepted" && a.handoverConfirmedAt && (
                 <Button
                   variant="contained"
                   onClick={() =>
@@ -376,6 +493,17 @@ export default function Applications({ isStaff, onChanged }) {
           </article>
         ))
       )}
+      {dialog?.kind === "verification" && (
+        <Verification
+          onClose={() => setDialog(null)}
+          onSave={() =>
+            change(dialog.application, "verification", {
+              visited: true,
+              ownershipReviewed: true,
+            })
+          }
+        />
+      )}
       {dialog?.kind === "form" && (
         <FormDialog {...dialog} onClose={() => setDialog(null)} />
       )}{" "}
@@ -394,10 +522,69 @@ export default function Applications({ isStaff, onChanged }) {
             change(dialog.application, "simulate-payment", {
               outcome,
               confirmSimulation: true,
+              signingAndKeysConfirmed: true,
             })
           }
         />
       )}
     </>
+  );
+}
+
+function Verification({ onClose, onSave }) {
+  const [visit, setVisit] = useState(false),
+    [documents, setDocuments] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  return (
+    <Dialog open onClose={() => !busy && onClose()}>
+      <DialogTitle>Confirm in-person checks</DialogTitle>
+      <DialogContent>
+        <Alert severity="info">
+          These are your own confirmations, not verification by DreamHome. Do
+          not upload ownership documents or identity numbers here.
+        </Alert>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={visit}
+              onChange={(e) => setVisit(e.target.checked)}
+            />
+          }
+          label="I visited the property and checked water, seepage, electrical condition and neighborhood safety."
+        />
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={documents}
+              onChange={(e) => setDocuments(e.target.checked)}
+            />
+          }
+          label="I reviewed ownership evidence with the owner or authorized representative and resolved my questions."
+        />
+        {error && <Alert severity="error">{error}</Alert>}
+      </DialogContent>
+      <DialogActions>
+        <Button disabled={busy} onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          disabled={busy || !visit || !documents}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await onSave();
+              onClose();
+            } catch (e) {
+              setError(e.message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Confirm checks
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

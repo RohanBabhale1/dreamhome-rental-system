@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ImageUpload from "./ImageUpload";
 import {
   Alert,
   Button,
@@ -37,44 +38,55 @@ export function Loading() {
 export function Empty({ children = "Nothing here yet." }) {
   return <div className="empty">{children}</div>;
 }
-export function FormFields({ fields, values, setValues }) {
+export function FormFields({ fields, values, setValues, onUploadBusy }) {
   return (
     <div className="form-grid">
-      {fields.map((field) => (
-        <TextField
-          key={field.name}
-          label={field.label}
-          type={field.type || "text"}
-          select={!!field.options}
-          required={field.required !== false}
-          fullWidth
-          multiline={field.multiline}
-          minRows={field.multiline ? 3 : undefined}
-          value={values[field.name] ?? ""}
-          onChange={(event) =>
-            setValues({ ...values, [field.name]: event.target.value })
-          }
-          slotProps={{
-            inputLabel: { shrink: true },
-            htmlInput: {
-              min: field.min,
-              max: field.max,
-              step: field.step,
-              minLength: field.minLength,
-              maxLength: field.maxLength,
-            },
-          }}
-        >
-          {field.options?.map((option) => (
-            <MenuItem
-              key={option.value ?? option}
-              value={option.value ?? option}
-            >
-              {option.label ?? option}
-            </MenuItem>
-          ))}
-        </TextField>
-      ))}
+      {fields.map((field) =>
+        field.type === "image" ? (
+          <ImageUpload
+            onBusy={onUploadBusy}
+            key={field.name}
+            value={values[field.name]}
+            onChange={(url) =>
+              setValues((old) => ({ ...old, [field.name]: url }))
+            }
+          />
+        ) : (
+          <TextField
+            key={field.name}
+            label={field.label}
+            type={field.type || "text"}
+            select={!!field.options}
+            required={field.required !== false}
+            fullWidth
+            multiline={field.multiline}
+            minRows={field.multiline ? 3 : undefined}
+            value={values[field.name] ?? ""}
+            onChange={(event) =>
+              setValues({ ...values, [field.name]: event.target.value })
+            }
+            slotProps={{
+              inputLabel: { shrink: true },
+              htmlInput: {
+                min: field.min,
+                max: field.max,
+                step: field.step,
+                minLength: field.minLength,
+                maxLength: field.maxLength,
+              },
+            }}
+          >
+            {field.options?.map((option) => (
+              <MenuItem
+                key={option.value ?? option}
+                value={option.value ?? option}
+              >
+                {option.label ?? option}
+              </MenuItem>
+            ))}
+          </TextField>
+        ),
+      )}
     </div>
   );
 }
@@ -86,11 +98,13 @@ export function FormDialog({
   onClose,
   submitLabel = "Save",
 }) {
+  const [uploadBusy, setUploadBusy] = useState(false);
   const [values, setValues] = useState(initial),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   async function submit(event) {
     event.preventDefault();
+    if (uploadBusy) return;
     setBusy(true);
     setError("");
     try {
@@ -112,13 +126,22 @@ export function FormDialog({
               {error}
             </Alert>
           )}
-          <FormFields fields={fields} values={values} setValues={setValues} />
+          <FormFields
+            fields={fields}
+            values={values}
+            setValues={setValues}
+            onUploadBusy={setUploadBusy}
+          />
         </DialogContent>
         <DialogActions>
           <Button disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" variant="contained" disabled={busy}>
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={busy || uploadBusy}
+          >
             {busy ? "Saving…" : submitLabel}
           </Button>
         </DialogActions>

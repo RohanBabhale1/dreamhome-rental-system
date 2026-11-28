@@ -2,6 +2,13 @@ const router = require("express").Router();
 const { Property, Branch } = require("../models");
 const { z, id, text, money, fail, auth, staff } = require("../lib");
 const schema = z.object({
+  ownerName: text.optional(),
+  ownerPhone: z
+    .string()
+    .trim()
+    .regex(/^[+0-9 ()-]{7,30}$/)
+    .optional(),
+  ownerEmail: z.union([z.email(), z.literal("")]).optional(),
   title: text,
   address: text,
   city: text,
@@ -16,6 +23,7 @@ const schema = z.object({
   imageUrl: z
     .union([
       z.literal(""),
+      z.string().regex(/^\/api\/images\/[a-f0-9]{24}$/),
       z
         .string()
         .regex(
@@ -96,6 +104,13 @@ router.get("/:id", async (req, res) => {
 });
 async function data(body) {
   const value = schema.parse(body);
+  if (
+    value.imageUrl.startsWith("/api/images/") &&
+    !(await require("../models").HomeImage.exists({
+      _id: value.imageUrl.split("/").pop(),
+    }))
+  )
+    fail(400, "Uploaded image not found");
   if (value.branch && !(await Branch.exists({ _id: value.branch })))
     fail(400, "Branch not found");
   value.branch = value.branch || null;

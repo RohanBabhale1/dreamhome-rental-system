@@ -55,11 +55,62 @@ router.post("/", async (req, res) => {
   });
   res.status(201).json(application);
 });
+router.post("/:id/verification", async (req, res) => {
+  if (req.user.role !== "client")
+    fail(403, "Only the applicant can confirm their visit");
+  z.object({
+    visited: z.literal(true),
+    ownershipReviewed: z.literal(true),
+  }).parse(req.body);
+  const application = await Application.findOneAndUpdate(
+    {
+      _id: id.parse(req.params.id),
+      client: req.user._id,
+      status: { $in: ["submitted", "approved", "accepted"] },
+    },
+    { $set: { visitConfirmedAt: new Date(), ownershipReviewedAt: new Date() } },
+    { new: true },
+  );
+  if (!application) fail(409, "An unpaid open application is required");
+  res.json(application);
+});
+router.post("/:id/handover", staff, async (req, res) => {
+  const { reference } = z
+    .object({ reference: text, ready: z.literal(true) })
+    .parse(req.body);
+  const application = await Application.findOneAndUpdate(
+    {
+      _id: id.parse(req.params.id),
+      status: "accepted",
+      visitConfirmedAt: { $ne: null },
+      ownershipReviewedAt: { $ne: null },
+    },
+    {
+      $set: {
+        handoverConfirmedAt: new Date(),
+        handoverConfirmedBy: req.user._id,
+        handoverReference: reference,
+      },
+    },
+    { new: true },
+  );
+  if (!application)
+    fail(
+      409,
+      "Client must confirm verification and accept the agreement first",
+    );
+  res.json(application);
+});
 router.post("/:id/approve", staff, async (req, res) => {
   const terms = z
     .object({
       startDate: day,
       endDate: day,
+      noticeDays: z.coerce.number().int().min(0).max(365),
+      lockInMonths: z.coerce.number().int().min(0).max(120),
+      maintenanceCharge: z.coerce.number().min(0).max(10000000),
+      annualIncreasePercent: z.coerce.number().min(0).max(100),
+      paymentPlan: text,
       monthlyRent: money,
       deposit: z.coerce
         .number()
@@ -85,6 +136,11 @@ router.post("/:id/approve", staff, async (req, res) => {
       status: "submitted",
     }).session(session);
     if (!application) fail(409, "Only submitted applications can be approved");
+    if (!application.visitConfirmedAt || !application.ownershipReviewedAt)
+      fail(
+        409,
+        "Client must confirm an in-person visit and ownership-document review first",
+      );
     const tenant = await User.findOne({
       _id: application.client,
       role: "client",
@@ -222,6 +278,7 @@ router.post("/:id/simulate-payment", async (req, res) => {
     .object({
       outcome: z.enum(["success", "failure"]),
       confirmSimulation: z.literal(true),
+      signingAndKeysConfirmed: z.literal(true),
     })
     .strict()
     .parse(req.body);
@@ -238,6 +295,15 @@ router.post("/:id/simulate-payment", async (req, res) => {
     }
     if (application.status !== "accepted")
       fail(409, "Accept the approved agreement before payment");
+    if (
+      !application.visitConfirmedAt ||
+      !application.ownershipReviewedAt ||
+      !application.handoverConfirmedAt
+    )
+      fail(
+        409,
+        "Verification and staff signing/key-handover confirmation are required before checkout",
+      );
     application.paymentAttempts += 1;
     if (outcome === "failure") {
       application.lastPaymentStatus = "failed";

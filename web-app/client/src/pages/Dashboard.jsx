@@ -27,7 +27,11 @@ const propertyFields = (branches) => [
   field("squareFeet", "Area (sq ft)", { type: "number", min: 1 }),
   field("rent", "Monthly rent ($)", { type: "number", min: 0.01, step: 0.01 }),
   field("description", "Description", { multiline: true, minLength: 10 }),
-  field("imageUrl", "Image URL (HTTPS or /images/homes/...)", {
+  field("imageUrl", "House photo", { type: "image", required: false }),
+  field("ownerName", "Owner / authorized contact name"),
+  field("ownerPhone", "Owner contact phone"),
+  field("ownerEmail", "Owner contact email", {
+    type: "email",
     required: false,
   }),
   field("branch", "Branch", {
